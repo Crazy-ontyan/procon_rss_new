@@ -4,6 +4,9 @@ on:
     - cron: "*/5 * * * *" # 5分ごと
   workflow_dispatch: # 手動テスト用
 
+permissions:
+  contents: write
+
 jobs:
   monitor:
     runs-on: ubuntu-latest
@@ -31,3 +34,15 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: python procon_checker.py
+
+      - name: Persist notice state
+        run: |
+          if [ -n "$(git status --porcelain -- last_notice.json)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add last_notice.json
+            git commit -m "chore: update last notice state [skip ci]"
+            git push
+          else
+            echo "State file has no changes"
+          fi
