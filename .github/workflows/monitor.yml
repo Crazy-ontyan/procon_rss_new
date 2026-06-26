@@ -1,8 +1,8 @@
 name: 高専プロコン監視ボット
 on:
   schedule:
-    - cron: "*/10 * * * *" # 10分ごと
-  workflow_dispatch: # 手動テスト用
+    - cron: "* */3 * * *" # 3時間ごとにバックアップ用実行
+  workflow_dispatch: # 常に外部サービスから10分毎にdispatch、手動テスト用
 
 permissions:
   contents: write
