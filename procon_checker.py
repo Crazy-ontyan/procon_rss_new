@@ -28,7 +28,7 @@ def get_latest_notice():
 
         href_str = link_tag.get('href', '')
         date_match = re.search(r'\d{4}/\d{2}/\d{2}', href_str)
-        date = date_match.group(1) if date_match else "日付不明"
+        date = date_match.group() if date_match else "日付不明"
         print(date)
 
         return {
