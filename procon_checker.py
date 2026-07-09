@@ -27,6 +27,7 @@ def get_latest_notice():
             continue
 
         parent_text = link_tag.parent.get_text(" ", strip=True)
+        print(parent_text)
         date_match = re.search(r"(\d{4}年\d{1,2}月\d{1,2}日(?:（[^）]+）)?)", parent_text)
         date = date_match.group(1) if date_match else "日付不明"
 
@@ -63,17 +64,6 @@ def send_notification(notice):
         return
     print(f"通知送信完了: {response.status_code}")
 
-def save_to_wayback(url):
-    save_url = f"https://web.archive.org/save/{url}"
-    try:
-        resp = requests.get(save_url, timeout=30)
-        if resp.status_code == 200:
-            print(f"Wayback Machine保存完了: {url}")
-        else:
-            print(f"Wayback Machine保存失敗: {resp.status_code}")
-    except Exception as e:
-        print(f"Wayback Machine保存エラー: {e}")
-
 if __name__ == "__main__":
     notice = get_latest_notice()
     if not notice:
@@ -89,5 +79,4 @@ if __name__ == "__main__":
             send_notification(notice)
         else:
             print("WEBHOOK_URL が未設定のためDiscordへ通知できません")
-        save_to_wayback(notice["link"])
         save_last_notice(notice)
