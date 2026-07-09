@@ -26,11 +26,9 @@ def get_latest_notice():
         if not title:
             continue
 
-        parent_text = link_tag.parent.get_text(" ", strip=True)
-        print(link_tag)
-        print(parent_text)
-        date_match = re.search(r"(\d{4}年\d{1,2}月\d{1,2}日(?:（[^）]+）)?)", parent_text)
+        date_match = re.search(r'\d{4}/\d{2}/\d{2}', link_tag)
         date = date_match.group(1) if date_match else "日付不明"
+        print(date)
 
         return {
             "date": date,
