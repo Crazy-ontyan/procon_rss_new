@@ -2,6 +2,7 @@ import requests
 import re
 import json
 import os
+import datetime
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -70,8 +71,11 @@ if __name__ == "__main__":
         exit(0)
     
     last = load_last_notice()
+    today = datetime.date.today().strftime("%Y/%m/%d")
     if last and last.get("link") == notice["link"]:
         print("更新なし")
+    elif last and last.get("date") != today:
+        print("日付が今日ではありません")
     else:
         print(f"新着: {notice['title']}")
         if WEBHOOK_URL:
