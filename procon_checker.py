@@ -25,10 +25,10 @@ JST = dt.timezone(dt.timedelta(hours=9))
 MAX_DOCUMENT_BYTES = 25 * 1024 * 1024
 DEADLINE_WORDS = re.compile(r"締\s*[切切り]|〆切|期限|提出期間|応募期間|申込期間|申込み期間|申し込み期間")
 DATE_RE = re.compile(
-    r"(?:(?P<era>令和)\s*(?P<era_year>元|\d{1,2})\s*年|(?P<year>20\d{2})\s*[年/.-])?"
-    r"(?P<month>1[0-2]|0?\d)\s*[月/.-]\s*(?P<day>3[01]|[12]?\d)\s*日?"
+    r"(?:(?P<era>令和)\s*(?P<era_year>元|\d{1,2})\s*年|(?P<year>20\d{2})\s*[年/])?\s*"
+    r"(?P<month>1[0-2]|0?\d)\s*[月/]\s*(?P<day>3[01]|[12]?\d)(?!\d)\s*日?"
     r"(?:\s*[（(][^）)]{0,3}[）)])?"
-    r"(?:\s*(?P<hour>[0-2]?\d)\s*[：:]\s*(?P<minute>[0-5]\d))?"
+    r"(?:\s*(?P<hour>[0-2]?\d)\s*(?:[：:]\s*|時\s*)(?P<minute>[0-5]\d)\s*分?)?"
 )
 
 
@@ -170,13 +170,33 @@ def relevant_contexts(text):
     return [" ".join(lines[max(0, i - 2):i + 3]) for i, line in enumerate(lines) if DEADLINE_WORDS.search(line)]
 
 
+def dates_for_deadline_word(context, word, date_matches):
+    before = [match for match in date_matches if match.end() <= word.start() and word.start() - match.end() <= 35]
+    after = [match for match in date_matches if match.start() >= word.end() and match.start() - word.end() <= 100]
+    if "期間" in word.group():
+        # 応募期間：開始日時～終了日時
+        return after[-1:] if after else before[-1:]
+
+    if after:
+        between = context[word.end():after[0].start()]
+        # 「締切：9月1日」「締切は8月28日」は後続日付にかかる。
+        if re.fullmatch(r"[\s:：、，,。はがをの日]*", between):
+            return after[:1]
+    # 「9月1日締切」「9月1日締切分」は直前の日付にかかる。
+    if before:
+        return before[-1:]
+    return after[:1]
+
+
 def extract_deadlines(text, source, year):
     deadlines, seen = [], set()
     for context in relevant_contexts(text):
-        matches = list(DATE_RE.finditer(context))
-        if not matches:
+        date_matches = list(DATE_RE.finditer(context))
+        if not date_matches:
             continue
-        chosen = matches[-1:] if ("まで" in context or "期間" in context) else matches
+        chosen = []
+        for word in DEADLINE_WORDS.finditer(context):
+            chosen.extend(dates_for_deadline_word(context, word, date_matches))
         for match in chosen:
             due = parse_date(match, year)
             if not due or due.year != year or due.isoformat() in seen:
@@ -197,7 +217,26 @@ def collect_deadlines(now):
             print(f"締切候補 {len(found)}件: {source['title']}")
         except (requests.RequestException, PdfReadError, ValueError, zipfile.BadZipFile, OSError) as error:
             print(f"資料を読み取れませんでした: {source['url']} ({error})")
-    return sorted({(d["due"], d["excerpt"]): d for d in deadlines}.values(), key=lambda d: d["due"])
+    grouped = {}
+    for deadline in deadlines:
+        due = deadline["due"]
+        if due not in grouped:
+            grouped[due] = deadline
+            grouped[due]["id"] = hashlib.sha256(due.encode()).hexdigest()[:20]
+            grouped[due]["sources"] = [deadline["source"]]
+            grouped[due]["titles"] = [deadline["title"]]
+            continue
+        current = grouped[due]
+        if deadline["source"] not in current["sources"]:
+            current["sources"].append(deadline["source"])
+        if deadline["title"] not in current["titles"]:
+            current["titles"].append(deadline["title"])
+        if len(deadline["excerpt"]) > len(current["excerpt"]):
+            current["excerpt"] = deadline["excerpt"]
+            current["source"] = deadline["source"]
+        current["title"] = " / ".join(current["titles"][:3])
+        current["id"] = hashlib.sha256(due.encode()).hexdigest()[:20]
+    return sorted(grouped.values(), key=lambda d: d["due"])
 
 
 def reminder_threshold(days_left):
@@ -227,8 +266,8 @@ def check_deadlines(now):
             record["notified"].append(threshold)
         else:
             print(description)
-    cutoff = now - dt.timedelta(days=370)
-    state["deadlines"] = {key: value for key, value in records.items() if key in discovered_ids or dt.datetime.fromisoformat(value["due"]) >= cutoff}
+    # A successful scan is authoritative: remove corrected, deleted and false-positive entries.
+    state["deadlines"] = {key: records[key] for key in discovered_ids}
     state["last_checked_at"] = now.isoformat()
     save_json(DEADLINE_STATE, state)
 

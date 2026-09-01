@@ -33,6 +33,35 @@ class DeadlineExtractionTests(unittest.TestCase):
         parsed = checker.parse_date(checker.DATE_RE.search("2026年5月25日"), 2026)
         self.assertEqual(parsed, dt.datetime(2026, 5, 25, 23, 59, tzinfo=checker.JST))
 
+    def test_does_not_treat_section_numbers_as_dates(self):
+        text = "1.5 日程 1.6 提出書類等 [1] 9月1日(火)17:00 締切分 [2] 10月2日(金)17:00 締切分 1.7 知的財産権"
+        due = {item["due"] for item in checker.extract_deadlines(text, self.source, 2026)}
+        self.assertEqual(due, {"2026-09-01T17:00:00+09:00", "2026-10-02T17:00:00+09:00"})
+
+    def test_does_not_partially_match_day(self):
+        text = "【参加登録・応募期間】令和8年5月18日（月）8:30 ～ 5月25日（月）17:00"
+        due = [item["due"] for item in checker.extract_deadlines(text, self.source, 2026)]
+        self.assertEqual(due, ["2026-05-25T17:00:00+09:00"])
+
+    def test_associates_start_and_deadline_labels(self):
+        text = "システム等の調書登録 開始：8月25日（火）8:30 締切：9月1日（火）17:00"
+        due = [item["due"] for item in checker.extract_deadlines(text, self.source, 2026)]
+        self.assertEqual(due, ["2026-09-01T17:00:00+09:00"])
+
+    def test_chooses_deadline_not_later_delivery_date(self):
+        text = "入力〆切日：10月5日(月)17:00まで URL システムの搬送は10月9日(金)の16:00～18:00"
+        due = [item["due"] for item in checker.extract_deadlines(text, self.source, 2026)]
+        self.assertEqual(due, ["2026-10-05T17:00:00+09:00"])
+
+    def test_parses_hour_kanji_format(self):
+        parsed = checker.parse_date(checker.DATE_RE.search("8月28日(金)23時59分"), 2026)
+        self.assertEqual(parsed, dt.datetime(2026, 8, 28, 23, 59, tzinfo=checker.JST))
+
+    def test_deadline_with_spaces_after_gregorian_year(self):
+        text = "システム稼働開始日時：2026 年7月1日10時00分 参加登録・入金締切日：2026 年 8月28日23時59分"
+        due = [item["due"] for item in checker.extract_deadlines(text, self.source, 2026)]
+        self.assertEqual(due, ["2026-08-28T23:59:00+09:00"])
+
 
 if __name__ == "__main__":
     unittest.main()
