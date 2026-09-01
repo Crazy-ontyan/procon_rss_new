@@ -62,6 +62,14 @@ class DeadlineExtractionTests(unittest.TestCase):
         due = [item["due"] for item in checker.extract_deadlines(text, self.source, 2026)]
         self.assertEqual(due, ["2026-08-28T23:59:00+09:00"])
 
+    def test_deadline_scan_is_throttled(self):
+        now = dt.datetime(2026, 9, 2, 12, 0, tzinfo=checker.JST)
+        recent = {"last_checked_at": (now - dt.timedelta(hours=23)).isoformat()}
+        old = {"last_checked_at": (now - dt.timedelta(hours=24)).isoformat()}
+        self.assertFalse(checker.deadline_check_due(now, recent))
+        self.assertTrue(checker.deadline_check_due(now, old))
+        self.assertTrue(checker.deadline_check_due(now, {}))
+
 
 if __name__ == "__main__":
     unittest.main()

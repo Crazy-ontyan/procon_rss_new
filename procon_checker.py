@@ -21,6 +21,7 @@ WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 NOTICE_STATE = Path("last_notice.json")
 DEADLINE_STATE = Path("deadline_state.json")
 REMINDER_DAYS = tuple(sorted({int(v) for v in os.environ.get("DEADLINE_REMINDER_DAYS", "14,7,3,1,0").split(",")}, reverse=True))
+DEADLINE_CHECK_INTERVAL = dt.timedelta(hours=int(os.environ.get("DEADLINE_CHECK_INTERVAL_HOURS", "24")))
 JST = dt.timezone(dt.timedelta(hours=9))
 MAX_DOCUMENT_BYTES = 25 * 1024 * 1024
 DEADLINE_WORDS = re.compile(r"締\s*[切切り]|〆切|期限|提出期間|応募期間|申込期間|申込み期間|申し込み期間")
@@ -244,9 +245,26 @@ def reminder_threshold(days_left):
     return min(eligible) if eligible and days_left >= 0 else None
 
 
+def deadline_check_due(now, state):
+    last_checked = state.get("last_checked_at")
+    if not last_checked:
+        return True
+    try:
+        checked_at = dt.datetime.fromisoformat(last_checked)
+    except (TypeError, ValueError):
+        return True
+    if checked_at.tzinfo is None:
+        checked_at = checked_at.replace(tzinfo=JST)
+    return now >= checked_at + DEADLINE_CHECK_INTERVAL
+
+
 def check_deadlines(now):
-    deadlines = collect_deadlines(now)
     state = load_json(DEADLINE_STATE, {"deadlines": {}})
+    if not deadline_check_due(now, state):
+        next_check = dt.datetime.fromisoformat(state["last_checked_at"]) + DEADLINE_CHECK_INTERVAL
+        print(f"締切資料の確認は省略します（次回: {next_check.astimezone(JST).strftime('%Y-%m-%d %H:%M JST')}）")
+        return
+    deadlines = collect_deadlines(now)
     records = state.setdefault("deadlines", {})
     discovered_ids = set()
     for deadline in deadlines:

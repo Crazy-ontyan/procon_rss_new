@@ -1,9 +1,11 @@
 name: 高専プロコン監視ボット
 
 on:
-  schedule:
-    - cron: "17 */3 * * *" # 3時間ごと（UTC）
   workflow_dispatch:
+
+concurrency:
+  group: procon-monitor
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -34,6 +36,7 @@ jobs:
       - name: Run procon checker
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
+          DEADLINE_CHECK_INTERVAL_HOURS: "24"
         run: python procon_checker.py
 
       - name: Persist notification state

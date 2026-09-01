@@ -8,6 +8,8 @@
 
 GitHubリポジトリのActions secretに `DISCORD_WEBHOOK` という名前でDiscord Webhook URLを登録してください。通知日を変える場合は、環境変数 `DEADLINE_REMINDER_DAYS` に `21,14,7,3,1,0` のように指定できます。
 
+外部cronから5分ごとに `workflow_dispatch` する運用を想定しています。新着お知らせは毎回確認しますが、ダウンロード資料の締切走査は既定で24時間に1回だけ行います。走査間隔は `DEADLINE_CHECK_INTERVAL_HOURS` で変更できます。GitHub Actions自身のscheduleは設定していないため、外部cronと二重実行されません。
+
 ローカルでは `WEBHOOK_URL` を設定します。未設定の場合、Discordには送らず通知内容を標準出力で確認できます。
 
 ```powershell
