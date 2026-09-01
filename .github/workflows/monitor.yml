@@ -1,8 +1,9 @@
 name: 高専プロコン監視ボット
+
 on:
   schedule:
-    - cron: "* */3 * * *" # 3時間ごとにバックアップ用実行
-  workflow_dispatch: # 常に外部サービスから1分毎にdispatch、手動テスト用
+    - cron: "17 */3 * * *" # 3時間ごと（UTC）
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -35,14 +36,14 @@ jobs:
           WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK }}
         run: python procon_checker.py
 
-      - name: Persist notice state
+      - name: Persist notification state
         run: |
-          if [ -n "$(git status --porcelain -- last_notice.json)" ]; then
+          if [ -n "$(git status --porcelain -- last_notice.json deadline_state.json)" ]; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add last_notice.json
-            git commit -m "chore: update last notice state [skip ci]"
+            git add last_notice.json deadline_state.json
+            git commit -m "chore: update notification state [skip ci]"
             git push
           else
-            echo "State file has no changes"
+            echo "State files have no changes"
           fi
